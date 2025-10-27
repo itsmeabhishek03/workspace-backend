@@ -9,7 +9,13 @@ export interface IInvite extends Document {
   accepted: boolean;
   createdAt: Date;
   updatedAt: Date;
+  lastSentAt?: Date;
+  sendCount: number;
+  status: "pending" | "sent" | "failed" | "accepted";
+  lastError?: string;
+  expiresAt?: Date;
 }
+
 
 const inviteSchema = new Schema<IInvite>(
   {
@@ -18,7 +24,16 @@ const inviteSchema = new Schema<IInvite>(
     email: { type: String, required: true, lowercase: true, trim: true, index: true },
     role: { type: String, enum: ["member", "admin"], default: "member" },
     token: { type: String, required: true, unique: true },
-    accepted: { type: Boolean, default: false }
+    accepted: { type: Boolean, default: false },
+    lastSentAt: { type: Date },
+    sendCount: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["pending", "sent", "failed", "accepted"],
+      default: "pending",
+    },
+    lastError: { type: String },
+    expiresAt: { type: Date },
   },
   { timestamps: true }
 );
