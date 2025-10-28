@@ -6,6 +6,7 @@ import { Channel } from "../models/channel.model";
 import { Message } from "../models/message.model";
 import { z } from "zod";
 import { roleAtLeast } from "../utils/rbac";
+import { publishMessageCreated, publishMessageEdited, publishMessageDeleted } from "../realtime/socket";
 
 const router = Router();
 
@@ -62,7 +63,7 @@ router.post(
     const { channelId } = req.params;
     const parsed = postSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: { message: "Invalid body" } });
-
+    
     const message = await Message.create({
       workspaceId: req.params.workspaceId,
       channelId,
@@ -70,7 +71,8 @@ router.post(
       parentMessageId: parsed.data.parentMessageId || null,
       body: parsed.data.body
     });
-
+    
+    publishMessageCreated(message.toObject()); 
     res.status(201).json({ message });
   }
 );
@@ -106,6 +108,8 @@ router.patch(
       { new: true }
     ).lean();
 
+    publishMessageEdited(updated);
+
     return res.json({ message: updated });
   }
 );
@@ -134,6 +138,7 @@ router.delete(
       { new: true }
     ).lean();
 
+    publishMessageDeleted(updated);     
     return res.json({ message: updated });
   }
 );
