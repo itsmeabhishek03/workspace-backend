@@ -26,10 +26,10 @@ export function initRealtime(httpServer: HttpServer) {
   });
 
   // Redis adapter for horizontal scale
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-  const pubClient = new Redis(redisUrl);
-  const subClient = pubClient.duplicate();
-  io.adapter(createAdapter(pubClient, subClient));
+  // const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  // const pubClient = new Redis(redisUrl);
+  // const subClient = pubClient.duplicate();
+  // io.adapter(createAdapter(pubClient, subClient));
 
   // auth middleware (JWT)
   io.use((socket, next) => {

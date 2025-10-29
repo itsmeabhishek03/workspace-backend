@@ -1,4 +1,3 @@
-import http from 'http';
 import env from './config/env';
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
@@ -6,27 +5,21 @@ import { connectDB, disconnectDB } from './config/db';
 async function start() {
   await connectDB();
 
-  const app = createApp();
-  const server = http.createServer(app);
+  // createApp already returns server now
+  const server = createApp();
 
   server.listen(env.PORT, () => {
-    // eslint-disable-next-line no-console
-    console.log(`HTTP server listening on http://localhost:${env.PORT}`);
+    console.log(`✅ HTTP + WebSocket server running at http://localhost:${env.PORT}`);
   });
 
-  // Graceful shutdown
   const shutdown = async (signal: string) => {
-    // eslint-disable-next-line no-console
-    console.log(`\n${signal} received: closing HTTP server and Mongo connection...`);
+    console.log(`\n${signal} received: closing server and DB...`);
     server.close(async () => {
       await disconnectDB();
-      // eslint-disable-next-line no-console
-      console.log('Clean shutdown complete. Bye 👋');
+      console.log('Clean shutdown complete. 👋');
       process.exit(0);
     });
-    // Force-exit timer in case something hangs
     setTimeout(async () => {
-      // eslint-disable-next-line no-console
       console.warn('Forcing shutdown...');
       await disconnectDB();
       process.exit(1);
@@ -38,7 +31,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('Fatal startup error:', err);
   process.exit(1);
 });

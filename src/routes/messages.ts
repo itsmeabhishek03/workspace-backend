@@ -139,6 +139,7 @@ router.delete(
     ).lean();
 
     publishMessageDeleted(updated);     
+
     return res.json({ message: updated });
   }
 );
