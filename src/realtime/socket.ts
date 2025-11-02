@@ -1,3 +1,4 @@
+// src/realtime/socket.ts
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
@@ -6,85 +7,71 @@ import { verifyAccessToken } from "../utils/jwt";
 import { Membership } from "../models/membership.model";
 import { Channel } from "../models/channel.model";
 
-// room helpers
 export const room = {
   user: (userId: string) => `user:${userId}`,
   channel: (channelId: string) => `channel:${channelId}`,
   workspace: (workspaceId: string) => `workspace:${workspaceId}`,
 };
 
-// export a singleton io + publisher API
 let ioSingleton: Server | null = null;
+// keep these so we can close them on shutdown
+let redisPub: Redis | null = null;
+let redisSub: Redis | null = null;
 
 export function initRealtime(httpServer: HttpServer) {
   if (ioSingleton) return ioSingleton;
 
-  const allowOrigins = (process.env.WS_ALLOW_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+  const allowOrigins = (process.env.WS_ALLOW_ORIGINS || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+
   const io = new Server(httpServer, {
     cors: allowOrigins.length ? { origin: allowOrigins, credentials: true } : undefined,
     connectionStateRecovery: { maxDisconnectionDuration: 60_000, skipMiddlewares: true },
   });
 
-  // Redis adapter for horizontal scale
-  // const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-  // const pubClient = new Redis(redisUrl);
-  // const subClient = pubClient.duplicate();
-  // io.adapter(createAdapter(pubClient, subClient));
+  // Redis adapter
+  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  redisPub = new Redis(redisUrl);
+  redisSub = redisPub.duplicate();
+  io.adapter(createAdapter(redisPub, redisSub));
 
-  // auth middleware (JWT)
+  // auth middleware
   io.use((socket, next) => {
     try {
-      // JWT can arrive via auth.token or headers['authorization']
       const token =
         (socket.handshake.auth && socket.handshake.auth.token) ||
         (socket.handshake.headers.authorization?.startsWith("Bearer ")
           ? socket.handshake.headers.authorization.slice(7)
           : undefined);
-
       if (!token) return next(new Error("Missing auth token"));
       const payload: any = verifyAccessToken(token);
       (socket as any).user = { id: String(payload.id), email: payload.email, name: payload.name };
-      return next();
-    } catch (e) {
-      return next(new Error("Invalid or expired token"));
+      next();
+    } catch {
+      next(new Error("Invalid or expired token"));
     }
   });
 
   io.on("connection", (socket) => {
     const user = (socket as any).user as { id: string; email: string; name?: string };
-    // always join a personal room
     socket.join(room.user(user.id));
 
-    // subscribe to a channel: client emits { channelId }
-    socket.on("subscribe:channel", async (payload: { channelId: string }) => {
-      try {
-        if (!payload?.channelId) return socket.emit("error", { message: "channelId required" });
-
-        const ch = await Channel.findById(payload.channelId).select("_id workspaceId").lean();
-        if (!ch) return socket.emit("error", { message: "Channel not found" });
-
-        // ensure membership
-        const mem = await Membership.findOne({ workspaceId: ch.workspaceId, userId: user.id })
-          .select("_id")
-          .lean();
-        if (!mem) return socket.emit("error", { message: "Not a member of this workspace" });
-
-        socket.join(room.channel(payload.channelId));
-        socket.emit("subscribed:channel", { channelId: payload.channelId });
-      } catch (e: any) {
-        socket.emit("error", { message: e?.message || "subscribe failed" });
-      }
+    socket.on("subscribe:channel", async ({ channelId }: { channelId: string }) => {
+      if (!channelId) return socket.emit("error", { message: "channelId required" });
+      const ch = await Channel.findById(channelId).select("_id workspaceId").lean();
+      if (!ch) return socket.emit("error", { message: "Channel not found" });
+      const mem = await Membership.findOne({ workspaceId: ch.workspaceId, userId: user.id }).select("_id").lean();
+      if (!mem) return socket.emit("error", { message: "Not a member of this workspace" });
+      socket.join(room.channel(channelId));
+      socket.emit("subscribed:channel", { channelId });
     });
 
-    // unsubscribe
-    socket.on("unsubscribe:channel", (payload: { channelId: string }) => {
-      if (!payload?.channelId) return;
-      socket.leave(room.channel(payload.channelId));
-      socket.emit("unsubscribed:channel", { channelId: payload.channelId });
-    });
-
-    socket.on("disconnect", () => {
-      // noop; connectionStateRecovery will help with transient drops
+    socket.on("unsubscribe:channel", ({ channelId }: { channelId: string }) => {
+      if (!channelId) return;
+      socket.leave(room.channel(channelId));
+      socket.emit("unsubscribed:channel", { channelId });
     });
   });
 
@@ -92,18 +79,32 @@ export function initRealtime(httpServer: HttpServer) {
   return io;
 }
 
-// --------- publishers you can call from routes ----------
+export async function closeRealtime() {
+  // close socket.io first (stops using redis)
+  if (ioSingleton) {
+    await new Promise<void>((resolve) => ioSingleton!.close(() => resolve()));
+    ioSingleton = null;
+  }
+  // then close redis connections
+  if (redisSub) {
+    try { await redisSub.quit(); } catch {}
+    redisSub = null;
+  }
+  if (redisPub) {
+    try { await redisPub.quit(); } catch {}
+    redisPub = null;
+  }
+}
+
+// publishers
 export function publishMessageCreated(message: any) {
-  // message must contain channelId
   if (!ioSingleton) return;
   ioSingleton.to(room.channel(String(message.channelId))).emit("message:created", { message });
 }
-
 export function publishMessageEdited(message: any) {
   if (!ioSingleton) return;
   ioSingleton.to(room.channel(String(message.channelId))).emit("message:edited", { message });
 }
-
 export function publishMessageDeleted(message: any) {
   if (!ioSingleton) return;
   ioSingleton.to(room.channel(String(message.channelId))).emit("message:deleted", { message });

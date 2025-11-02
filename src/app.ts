@@ -40,5 +40,3 @@ export function createApp() {
   // Return the *HTTP server*, not the app
   return server;
 }
-
-

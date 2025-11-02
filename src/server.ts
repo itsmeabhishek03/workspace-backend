@@ -1,11 +1,12 @@
+// src/server.ts
 import env from './config/env';
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
+import { closeRealtime } from './realtime/socket'; // <-- add
 
 async function start() {
   await connectDB();
 
-  // createApp already returns server now
   const server = createApp();
 
   server.listen(env.PORT, () => {
@@ -13,15 +14,22 @@ async function start() {
   });
 
   const shutdown = async (signal: string) => {
-    console.log(`\n${signal} received: closing server and DB...`);
+    console.log(`\n${signal} received: closing server, websockets, and DB...`);
+
+    // stop accepting new HTTP connections
     server.close(async () => {
-      await disconnectDB();
+      // close Socket.IO + Redis
+      await closeRealtime();         // <-- graceful Redis close
+      await disconnectDB();          // <-- then Mongo
       console.log('Clean shutdown complete. 👋');
       process.exit(0);
     });
+
+    // safety timer
     setTimeout(async () => {
       console.warn('Forcing shutdown...');
-      await disconnectDB();
+      try { await closeRealtime(); } catch {}
+      try { await disconnectDB(); } catch {}
       process.exit(1);
     }, 10_000).unref();
   };
