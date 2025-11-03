@@ -102,21 +102,34 @@ router.post("/refresh", async (req, res) => {
     const userId = String(payload.id);
     const oldJti = String(payload.jti);
 
-    // check redis session exists
+    // 1️⃣ Check Redis session
     const exists = await hasRefreshSession(userId, oldJti);
     if (!exists) {
       return res.status(401).json({ error: { message: "Refresh session invalid" } });
     }
 
-    // rotate: delete old, issue new
+    // 2️⃣ Rotate refresh token
     await deleteRefreshSession(userId, oldJti);
 
-    const newAccessToken = signAccessToken({ id: userId, email: undefined as any, name: undefined as any });
-    // Note: to include email/name here, fetch user (optional optimization)
+    // 3️⃣ Fetch full user details
+    const user = await User.findById(userId).select("id email name").lean();
+    if (!user) {
+      return res.status(404).json({ error: { message: "User not found" } });
+    }
+
+    // 4️⃣ Create new tokens
+    const newAccessToken = signAccessToken({
+      id: String(user._id),
+      email: user.email,
+      name: user.name,
+    });
+
     const rtJti = crypto.randomBytes(16).toString("hex");
     const newRefreshToken = signRefreshToken({ id: userId, jti: rtJti });
+
     await storeRefreshSession(userId, rtJti, { ua: req.headers["user-agent"], ip: req.ip });
 
+    // 5️⃣ Set new refresh cookie
     res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, {
       httpOnly: true,
       sameSite: "lax",
@@ -124,11 +137,14 @@ router.post("/refresh", async (req, res) => {
       maxAge: refreshMs(),
     });
 
+    // 6️⃣ Send new access token to frontend
     res.json({ accessToken: newAccessToken });
-  } catch {
+  } catch (err) {
+    console.error("Refresh error:", err);
     res.status(401).json({ error: { message: "Invalid refresh token" } });
   }
 });
+
 
 /** LOGOUT (revoke just this RT) */
 router.post("/logout", async (req, res) => {
