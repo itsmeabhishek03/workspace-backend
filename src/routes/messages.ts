@@ -42,11 +42,24 @@ router.get(
 
     const query: any = { channelId, parentMessageId: null };
     if (before) query.createdAt = { $lt: before };
-    const messages = await Message.find(query).sort({ createdAt: -1 }).limit(limit).lean();
+
+   const docs = await Message.find(query)
+     .sort({ createdAt: -1 })
+     .limit(limit)
+     .populate("userId", "name email avatarUrl")
+     .lean();
+
+   const messages = docs.map((m: any) => ({
+     ...m,
+     user: m.userId
+       ? { id: String(m.userId._id), name: m.userId.name, email: m.userId.email, avatarUrl: m.userId.avatarUrl ?? null }
+       : null,
+   }));
 
     res.json({ messages });
   }
 );
+
 
 const postSchema = z.object({
   body: z.string().min(1),
@@ -72,8 +85,18 @@ router.post(
       body: parsed.data.body
     });
     
-    publishMessageCreated(message.toObject()); 
-    res.status(201).json({ message });
+    const populated = await Message.findById(message._id)
+    .populate("userId", "name email avatarUrl")
+    .lean() as any;
+   const out = {
+   ...populated,
+   user: populated?.userId
+     ? { id: String(populated.userId._id), name: populated.userId.name, email: populated.userId.email, avatarUrl: populated.userId.avatarUrl ?? null }
+     : null,
+ };
+ publishMessageCreated(out);
+ res.status(201).json({ message: out });
+
   }
 );
 
@@ -106,11 +129,19 @@ router.patch(
       msg._id,
       { $set: { body: parsed.data.body, editedAt: new Date() } },
       { new: true }
-    ).lean();
+    ).populate("userId", "name email avatarUrl").lean() as any;
 
-    publishMessageEdited(updated);
+    const out = {
+  ...updated,
+  user: updated?.userId
+    ? { id: String(updated.userId._id), name: updated.userId.name, email: updated.userId.email, avatarUrl: updated.userId.avatarUrl ?? null }
+    : null,
+};
 
-    return res.json({ message: updated });
+ publishMessageEdited(out);
+ return res.json({ message: out });
+
+
   }
 );
 
@@ -136,11 +167,16 @@ router.delete(
       msg._id,
       { $set: { deletedAt: new Date() } },
       { new: true }
-    ).lean();
+    ).populate("userId", "name email avatarUrl").lean() as any;
 
-    publishMessageDeleted(updated);     
-
-    return res.json({ message: updated });
+    const out = {
+  ...updated,
+  user: updated?.userId
+    ? { id: String(updated.userId._id), name: updated.userId.name, email: updated.userId.email, avatarUrl: updated.userId.avatarUrl ?? null }
+    : null,
+};
+ publishMessageDeleted(out);
+ return res.json({ message: out });
   }
 );
 
