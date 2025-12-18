@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/**/*.ts": {
-      "runtime": "nodejs20.1"
+      "runtime": "nodejs22.20.0"
     }
   },
   "routes": [
