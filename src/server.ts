@@ -1,13 +1,24 @@
-// src/server.ts
+import http from 'http';
 import env from './config/env';
-import { createApp } from './app';
+import { buildExpressApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
-import { closeRealtime } from './realtime/socket'; // <-- add
+import { initRealtime, closeRealtime } from './realtime/socket';
 
-async function start() {
+/**
+ * Local / VPS entrypoint.
+ * Creates HTTP + WebSocket server and handles graceful shutdown.
+ * (Vercel uses api/index.ts instead; see below.)
+ */
+async function bootstrap() {
   await connectDB();
 
-  const server = createApp();
+  const app = buildExpressApp();
+  const server = http.createServer(app);
+
+  // initialize Socket.IO only outside Vercel
+  if (!process.env.VERCEL) {
+    initRealtime(server);
+  }
 
   server.listen(env.PORT, () => {
     console.log(`✅ HTTP + WebSocket server running at http://localhost:${env.PORT}`);
@@ -15,17 +26,13 @@ async function start() {
 
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received: closing server, websockets, and DB...`);
-
-    // stop accepting new HTTP connections
     server.close(async () => {
-      // close Socket.IO + Redis
-      await closeRealtime();         // <-- graceful Redis close
-      await disconnectDB();          // <-- then Mongo
+      await closeRealtime();
+      await disconnectDB();
       console.log('Clean shutdown complete. 👋');
       process.exit(0);
     });
 
-    // safety timer
     setTimeout(async () => {
       console.warn('Forcing shutdown...');
       try { await closeRealtime(); } catch {}
@@ -38,7 +45,7 @@ async function start() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-start().catch((err) => {
+bootstrap().catch((err) => {
   console.error('Fatal startup error:', err);
   process.exit(1);
 });

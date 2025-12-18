@@ -4,19 +4,14 @@ import env from './env';
 export async function connectDB() {
   mongoose.set('strictQuery', true);
 
-  await mongoose.connect(env.MONGO_URL, {
-    // you can add options here if needed
+  await mongoose.connect(process.env.MONGODB_URI ?? process.env.MONGO_URL ?? env.MONGO_URL, {
+    dbName: process.env.DB_NAME || 'teamchat_dev',
+    serverSelectionTimeoutMS: 5000,
   });
 
   const conn = mongoose.connection;
-  conn.on('connected', () => {
-    // eslint-disable-next-line no-console
-    console.log('🟢 Mongo connected');
-  });
-  conn.on('error', (err) => {
-    // eslint-disable-next-line no-console
-    console.error('🔴 Mongo error:', err);
-  });
+  conn.on('connected', () => console.log('🟢 Mongo connected'));
+  conn.on('error', (err) => console.error('🔴 Mongo error:', err));
 }
 
 export async function disconnectDB() {
