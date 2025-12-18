@@ -1,7 +1,8 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/index.ts": { "runtime": "nodejs20.x" }
+    "api/**/*.ts": {
+      "runtime": "nodejs20.1"
+    }
   },
   "routes": [
     { "src": "/(.*)", "dest": "api/index.ts" }
