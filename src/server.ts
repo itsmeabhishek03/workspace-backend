@@ -7,7 +7,7 @@ import { initRealtime, closeRealtime } from './realtime/socket';
 /**
  * Local / VPS entrypoint.
  * Creates HTTP + WebSocket server and handles graceful shutdown.
- * (Vercel uses api/index.ts instead; see below.)
+ * (Vercel uses src/app.ts default export instead.)
  */
 async function bootstrap() {
   await connectDB();
