@@ -4,7 +4,7 @@ import env from './env';
 export async function connectDB() {
   mongoose.set('strictQuery', true);
 
-  await mongoose.connect(process.env.MONGODB_URI ?? process.env.MONGO_URL ?? env.MONGO_URL, {
+  await mongoose.connect(process.env.MONGO_URI ?? process.env.MONGO_URL ?? env.MONGO_URL, {
     dbName: process.env.DB_NAME || 'teamchat_dev',
     serverSelectionTimeoutMS: 5000,
   });
