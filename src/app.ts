@@ -20,7 +20,28 @@ export function buildExpressApp() {
 
   app.use(helmet());
   app.use(cookieParser());
-  app.use(cors({ origin: true, credentials: true }));
+
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://workspace-frontend-yourvercelname.vercel.app'
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS not allowed from this origin'), false);
+    },
+    credentials: true,
+  })
+);
+
+
+  // app.use(cors({ origin: true, credentials: true }));
   app.use(express.json());
 
   // REST routes
