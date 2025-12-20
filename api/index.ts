@@ -1,5 +1,10 @@
+// api/index.ts
 import { buildExpressApp } from '../src/app';
+import { connectDB } from '../src/config/db';
 
-// Vercel’s Node runtime picks up default export here.
 const app = buildExpressApp();
+
+// Connect once per cold start
+await connectDB();
+
 export default app;
