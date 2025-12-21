@@ -6,7 +6,7 @@ export function getRedis(): Redis {
   if (redisSingleton) return redisSingleton;
   const url = process.env.REDIS_URL || "redis://127.0.0.1:6379";
   redisSingleton = new Redis(url, {
-    maxRetriesPerRequest: 2,
+    maxRetriesPerRequest: 20,
     enableReadyCheck: true,
   });
   redisSingleton.on("error", (e) => console.error("[redis] error:", e.message));
