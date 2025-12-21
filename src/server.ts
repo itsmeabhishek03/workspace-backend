@@ -1,7 +1,7 @@
 import http from 'http';
 import env from './config/env';
 import { buildExpressApp } from './app';
-import { connectDB, disconnectDB } from './config/db';
+import { connectDB } from './config/db';
 import { initRealtime, closeRealtime } from './realtime/socket';
 
 /**
@@ -28,7 +28,6 @@ async function bootstrap() {
     console.log(`\n${signal} received: closing server, websockets, and DB...`);
     server.close(async () => {
       await closeRealtime();
-      await disconnectDB();
       console.log('Clean shutdown complete. 👋');
       process.exit(0);
     });
@@ -36,7 +35,6 @@ async function bootstrap() {
     setTimeout(async () => {
       console.warn('Forcing shutdown...');
       try { await closeRealtime(); } catch {}
-      try { await disconnectDB(); } catch {}
       process.exit(1);
     }, 10_000).unref();
   };
