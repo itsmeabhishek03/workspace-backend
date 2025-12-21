@@ -7,6 +7,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken, refreshMs } from
 import { storeRefreshSession, hasRefreshSession, deleteRefreshSession, deleteAllRefreshSessions } from "../auth/refreshStore";
 import { getRedis } from "../redis/client";
 import { RKeys } from "../redis/keys";
+import { connectDB } from "../config/db";
 
 const router = Router();
 const REFRESH_COOKIE_NAME = process.env.REFRESH_COOKIE_NAME || "rt";
@@ -19,6 +20,7 @@ const registerSchema = z.object({
 });
 
 router.post("/register", async (req, res) => {
+  await connectDB();
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: { message: "Invalid input", details: parsed.error.flatten() } });
@@ -65,6 +67,7 @@ const loginSchema = z.object({
 });
 
 router.post("/login", async (req, res) => {
+  await connectDB();
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: { message: "Invalid input" } });
 
@@ -94,6 +97,7 @@ router.post("/login", async (req, res) => {
 
 /** REFRESH (rotate RT) */
 router.post("/refresh", async (req, res) => {
+  await connectDB();
   try {
     const token = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
     if (!token) return res.status(401).json({ error: { message: "Missing refresh token" } });
@@ -148,6 +152,7 @@ router.post("/refresh", async (req, res) => {
 
 /** LOGOUT (revoke just this RT) */
 router.post("/logout", async (req, res) => {
+  await connectDB();
   try {
     const token = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
     res.clearCookie(REFRESH_COOKIE_NAME, {
@@ -165,6 +170,7 @@ router.post("/logout", async (req, res) => {
 
 /** LOGOUT ALL (revoke all RT sessions) */
 router.post("/logout-all", async (req, res) => {
+  await connectDB();
   try {
     const token = req.cookies?.[REFRESH_COOKIE_NAME] || req.body?.refreshToken;
     if (!token) return res.status(401).json({ error: { message: "Missing refresh token" } });
@@ -182,7 +188,8 @@ router.post("/logout-all", async (req, res) => {
 /** FORCE-REVOKE ACCESS TOKEN (optional admin endpoint)
  *  Adds current AT jti to Redis denylist until its natural expiry.
  */
-router.post("/revoke-access", (req, res) => {
+router.post("/revoke-access", async (req, res) => {
+  await connectDB();
   const auth = req.headers.authorization || "";
   if (!auth.startsWith("Bearer ")) return res.status(400).json({ error: { message: "Missing bearer" } });
   const token = auth.slice(7);
