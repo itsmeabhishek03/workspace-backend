@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const MONGO_URI = process.env.MONGO_URI || "notst";
+const MONGO_URI = process.env.MONGO_URI!;
 
 if (!MONGO_URI) {
   throw new Error("MongoDB connection string is missing");
