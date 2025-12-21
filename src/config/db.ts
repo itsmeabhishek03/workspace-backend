@@ -24,7 +24,6 @@ export async function connectDB() {
 
   if (!cached.promise) {
     cached.promise = mongoose.connect(MONGO_URI, {
-      dbName: process.env.DB_NAME || "teamchat_dev",
       serverSelectionTimeoutMS: 5000,
     }).then((mongoose) => mongoose);
   }
