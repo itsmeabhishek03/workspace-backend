@@ -1,19 +1,34 @@
-import mongoose from 'mongoose';
-import env from './env';
+import mongoose from "mongoose";
 
-export async function connectDB() {
-  mongoose.set('strictQuery', true);
+const MONGO_URI = process.env.MONGO_URI || "notst";
 
-  await mongoose.connect(process.env.MONGO_URI ?? process.env.MONGO_URL ?? env.MONGO_URL, {
-    dbName: process.env.DB_NAME || 'teamchat_dev',
-    serverSelectionTimeoutMS: 5000,
-  });
-
-  const conn = mongoose.connection;
-  conn.on('connected', () => console.log('🟢 Mongo connected'));
-  conn.on('error', (err) => console.error('🔴 Mongo error:', err));
+if (!MONGO_URI) {
+  throw new Error("MongoDB connection string is missing");
 }
 
-export async function disconnectDB() {
-  await mongoose.connection.close();
+// Prevent query buffering (critical)
+mongoose.set("bufferCommands", false);
+mongoose.set("strictQuery", true);
+
+// Global cache (required for serverless)
+let cached = (global as any).mongoose;
+
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
+
+export async function connectDB() {
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(MONGO_URI, {
+      dbName: process.env.DB_NAME || "teamchat_dev",
+      serverSelectionTimeoutMS: 5000,
+    }).then((mongoose) => mongoose);
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
