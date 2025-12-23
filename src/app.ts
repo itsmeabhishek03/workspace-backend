@@ -23,7 +23,7 @@ export function buildExpressApp() {
 
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://workspace-frontend-yourvercelname.vercel.app'
+  'https://workspace-frontend-alpha.vercel.app'
 ];
 
 app.use(
